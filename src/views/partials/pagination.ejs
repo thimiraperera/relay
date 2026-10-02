@@ -1,0 +1,49 @@
+<%
+  // include('../partials/pagination', { page, pageSize, total, path, query })
+  // `query` holds the current filters (without `page`); they are kept in the links.
+  const pgNum = (n) => (locals.fmt ? locals.fmt.number(n) : String(n));
+  const pgSize = Math.max(1, Math.floor(Number(locals.pageSize)) || 50);
+  const pgTotal = Math.max(0, Math.floor(Number(locals.total)) || 0);
+  const pgPages = Math.max(1, Math.ceil(pgTotal / pgSize));
+  const pgCurrent = Math.max(1, Math.floor(Number(locals.page)) || 1);
+  const pgPath = typeof locals.path === 'string' ? locals.path : '';
+  const pgQuery = locals.query && typeof locals.query === 'object' ? locals.query : {};
+  const pgHref = (n) => {
+    const params = new URLSearchParams();
+    Object.keys(pgQuery).forEach((k) => {
+      const v = pgQuery[k];
+      if (k === 'page' || v === null || v === undefined || v === '') return;
+      (Array.isArray(v) ? v : [v]).forEach((x) => params.append(k, String(x)));
+    });
+    if (n > 1) params.set('page', String(n));
+    const qs = params.toString();
+    return pgPath + (qs ? '?' + qs : '');
+  };
+  const pgFirst = (pgCurrent - 1) * pgSize + 1;
+  const pgLast = Math.min(pgTotal, pgCurrent * pgSize);
+  const pgPrev = Math.min(pgCurrent - 1, pgPages);
+-%>
+<% if (pgTotal > 0) { -%>
+<nav class="pagination" aria-label="Pagination">
+  <span class="small muted">
+<% if (pgFirst <= pgTotal) { -%>
+    Showing <%= pgNum(pgFirst) %>–<%= pgNum(pgLast) %> of <%= pgNum(pgTotal) %>
+<% } else { -%>
+    Page <%= pgNum(pgCurrent) %> is past the end (<%= pgNum(pgTotal) %> in total)
+<% } -%>
+  </span>
+  <div class="actions">
+<% if (pgPrev >= 1) { -%>
+    <a class="btn btn-secondary btn-small" href="<%= pgHref(pgPrev) %>" rel="prev">Previous</a>
+<% } else { -%>
+    <span class="btn btn-secondary btn-small" aria-disabled="true">Previous</span>
+<% } -%>
+    <span class="small">Page <%= pgNum(pgCurrent) %> of <%= pgNum(pgPages) %></span>
+<% if (pgCurrent < pgPages) { -%>
+    <a class="btn btn-secondary btn-small" href="<%= pgHref(pgCurrent + 1) %>" rel="next">Next</a>
+<% } else { -%>
+    <span class="btn btn-secondary btn-small" aria-disabled="true">Next</span>
+<% } -%>
+  </div>
+</nav>
+<% } -%>

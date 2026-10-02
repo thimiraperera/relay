@@ -1,0 +1,14 @@
+# Dependencies. No trailing slash: on cPanel, node_modules is a symlink into the
+# Node.js virtual environment, and "node_modules/" would only match a directory.
+node_modules
+
+# Secrets and local settings (.env.example is the committed template)
+.env
+.env.*
+!.env.example
+
+# Runtime files
+*.log
+logs/
+tmp/
+coverage/

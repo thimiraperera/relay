@@ -1,0 +1,30 @@
+<%- include('partials/head', { title: 'Sign in' }) %>
+<div class="auth-wrap">
+  <section class="card auth-card" aria-labelledby="login-title">
+    <h1 class="card-title" id="login-title">Sign in to Relay</h1>
+<% if (locals.notice) { -%>
+    <div class="flash flash-info" role="status"><%= notice %></div>
+<% } -%>
+<% if (locals.error) { -%>
+    <div class="flash flash-error" role="alert" id="login-error"><%= error %></div>
+<% } -%>
+    <form method="post" action="/admin/login" class="form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<% if (locals.next) { -%>
+      <input type="hidden" name="next" value="<%= next %>">
+<% } -%>
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input id="login-email" name="email" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="254" required value="<%= locals.email || '' %>"<% if (!locals.email) { %> autofocus<% } %><% if (locals.error) { %> aria-describedby="login-error"<% } %>>
+      </div>
+      <div class="field">
+        <label for="login-password">Password</label>
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required<% if (locals.email) { %> autofocus<% } %>>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Sign in</button>
+      </div>
+    </form>
+  </section>
+</div>
+<%- include('partials/foot') %>

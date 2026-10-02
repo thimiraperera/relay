@@ -1,0 +1,58 @@
+<%- include('../partials/head', { title }) %>
+<div class="page-header">
+  <h1>Apps</h1>
+  <div class="actions">
+    <a class="btn btn-primary" href="/admin/apps/new">New app</a>
+  </div>
+</div>
+
+<% if (rows.length === 0) { -%>
+<section class="card empty">
+  <p>No apps yet.</p>
+  <p class="muted">Create one app for each website or program that sends email through Relay. Each app has its own SMTP mailbox, limits and API key.</p>
+  <div class="actions">
+    <a class="btn btn-primary" href="/admin/apps/new">Create the first app</a>
+  </div>
+</section>
+<% } else { -%>
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th scope="col">Name</th>
+        <th scope="col">Status</th>
+        <th scope="col">Sent today</th>
+        <th scope="col">Failed today</th>
+        <th scope="col">Last used</th>
+      </tr>
+    </thead>
+    <tbody>
+<% rows.forEach(function (row) { -%>
+      <tr>
+        <td>
+          <a href="/admin/apps/<%= row.app.id %>"><%= row.app.name %></a>
+          <div class="small muted mono"><%= row.app.fromEmail %></div>
+        </td>
+        <td>
+          <span class="badge <%= row.app.enabled ? 'badge-ok' : 'badge-off' %>"><%= row.app.enabled ? 'enabled' : 'disabled' %></span>
+<% if (row.app.legacySigning) { -%>
+          <span class="badge badge-info">legacy</span>
+<% } -%>
+        </td>
+        <td><a href="/admin/logs?app=<%= row.app.id %>&amp;status=sent&amp;from=<%= today %>&amp;to=<%= today %>"><%= fmt.number(row.sent) %></a></td>
+        <td>
+<% if (row.failed > 0) { -%>
+          <a href="/admin/logs?app=<%= row.app.id %>&amp;status=failed&amp;from=<%= today %>&amp;to=<%= today %>"><span class="badge badge-off"><%= fmt.number(row.failed) %></span></a>
+<% } else { -%>
+          <%= fmt.number(row.failed) %>
+<% } -%>
+        </td>
+        <td><span title="<%= fmt.dateTime(row.app.lastUsedAt) %>"><%= fmt.relative(row.app.lastUsedAt) %></span></td>
+      </tr>
+<% }); -%>
+    </tbody>
+  </table>
+</div>
+<p class="help">Today is <%= today %> (<%= timezone %>). "Failed" counts failed, rejected and unknown-outcome messages.</p>
+<% } -%>
+<%- include('../partials/foot') %>

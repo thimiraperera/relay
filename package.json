@@ -1,0 +1,35 @@
+{
+  "name": "relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-app HTTPS-to-SMTP mail relay with a minimal admin interface",
+  "main": "app.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node app.js",
+    "migrate": "node scripts/migrate.js",
+    "cleanup": "node scripts/cleanup.js",
+    "create-admin": "node scripts/create-admin.js",
+    "gen-secrets": "node scripts/gen-secrets.js",
+    "test": "node scripts/reset-test-db.js && node --test"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.5",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "html-to-text": "^9.0.5",
+    "mysql2": "^3.24.5",
+    "nodemailer": "^10.0.13",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "mailparser": "^3.9.33",
+    "smtp-server": "^3.19.16",
+    "supertest": "^7.3.0"
+  }
+}

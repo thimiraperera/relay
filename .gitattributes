@@ -1,0 +1,8 @@
+# Store text with LF line endings so the Linux server gets the same files.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary

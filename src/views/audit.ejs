@@ -1,0 +1,74 @@
+<%- include('partials/head', { title }) %>
+<div class="page-header">
+  <h1>Audit log</h1>
+</div>
+
+<form method="get" action="/admin/audit" class="filters">
+  <div class="field">
+    <label for="audit-app">App</label>
+    <select id="audit-app" name="app" data-autosubmit>
+      <option value="">Everything</option>
+<% apps.forEach(function (a) { -%>
+      <option value="<%= a.id %>"<%= String(a.id) === appFilter ? ' selected' : '' %>><%= a.name %></option>
+<% }); -%>
+    </select>
+  </div>
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Filter</button>
+<% if (appFilter) { -%>
+    <a class="btn btn-secondary" href="/admin/audit">Clear</a>
+<% } -%>
+  </div>
+</form>
+
+<% if (rows.length === 0) { -%>
+<section class="card empty">
+  <p><%= total > 0 ? 'This page is past the end of the log.' : 'Nothing recorded yet.' %></p>
+</section>
+<% } else { -%>
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th scope="col">Time</th>
+        <th scope="col">Admin</th>
+        <th scope="col">Action</th>
+        <th scope="col">Target</th>
+        <th scope="col">Details</th>
+      </tr>
+    </thead>
+    <tbody>
+<% rows.forEach(function (r) { -%>
+      <tr>
+        <td><%= fmt.dateTime(r.createdAt) %></td>
+        <td>
+<% if (r.actor.anonymous) { -%>
+          <span class="muted">anonymous</span>
+<% if (r.actor.email) { -%>
+          <div class="small muted">as <%= fmt.truncate(r.actor.email, 100) %></div>
+<% } -%>
+<% } else { -%>
+          <%= r.actor.label %>
+<% } -%>
+<% if (r.ip) { -%>
+          <div class="small muted mono"><%= r.ip %></div>
+<% } -%>
+        </td>
+        <td><span class="mono"><%= r.action %></span></td>
+        <td>
+<% if (r.target.href) { -%>
+          <a href="<%= r.target.href %>"><%= r.target.label %></a>
+<% } else { -%>
+          <%= r.target.label %>
+<% } -%>
+        </td>
+        <td class="small"<% if (r.summary.length > 300) { %> title="<%= fmt.truncate(r.summary, 2000) %>"<% } %>><%= r.summary ? fmt.truncate(r.summary, 300) : '—' %></td>
+      </tr>
+<% }); -%>
+    </tbody>
+  </table>
+</div>
+<% } -%>
+<%- include('partials/pagination', { page, pageSize, total, path: '/admin/audit', query: linkQuery }) %>
+<p class="help">Every configuration change and sign-in event, newest first. Times are in the relay's time zone. Secrets are never recorded, only that they changed. "system" is the relay itself or its command-line scripts; "anonymous" is a sign-in attempt before anyone was signed in, with the email that was used.</p>
+<%- include('partials/foot') %>

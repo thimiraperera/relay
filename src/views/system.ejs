@@ -1,0 +1,156 @@
+<%- include('partials/head', { title: 'System' }) %>
+<%
+  const cleanupLabels = {
+    unknownMarked: 'Interrupted sends marked unknown',
+    sessionsDeleted: 'Expired sessions deleted',
+    idempotencyDeleted: 'Old idempotency keys deleted',
+    messagesDeleted: 'Old log rows deleted',
+    countersDeleted: 'Expired rate counters deleted',
+  };
+-%>
+<div class="page-header">
+  <h1>System</h1>
+</div>
+
+<% if (warnings.length) { -%>
+<div class="flash-stack">
+<% warnings.forEach(function (w) { -%>
+  <div class="warning" role="note"><%= w %></div>
+<% }); -%>
+</div>
+<% } -%>
+
+<div class="grid-2">
+  <section class="card" aria-labelledby="app-title">
+    <h2 class="card-title" id="app-title">Application</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <tbody>
+          <tr><th scope="row">Relay version</th><td class="mono"><%= info.version %></td></tr>
+          <tr><th scope="row">Node.js</th><td class="mono"><%= info.nodeVersion %></td></tr>
+          <tr><th scope="row">Runtime</th><td><%= info.runtime %></td></tr>
+          <tr><th scope="row">NODE_ENV</th><td class="mono"><%= info.nodeEnv %></td></tr>
+          <tr><th scope="row">Public URL</th><td class="mono"><%= info.publicBaseUrl %></td></tr>
+          <tr><th scope="row">Time zone</th><td class="mono"><%= info.timezone %></td></tr>
+          <tr><th scope="row">Local time</th><td class="mono"><%= info.localNow %></td></tr>
+          <tr><th scope="row">Process uptime</th><td><%= info.uptime %></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="db-title">
+    <h2 class="card-title" id="db-title">Database</h2>
+<% if (database.ok) { -%>
+    <div class="table-wrap">
+      <table class="table">
+        <tbody>
+          <tr><th scope="row">Server version</th><td class="mono"><%= database.version %></td></tr>
+          <tr>
+            <th scope="row">max_user_connections</th>
+            <td><span class="mono"><%= database.maxUserConnections %></span><% if (Number(database.maxUserConnections) === 0) { %> <span class="muted small">(no per-user limit)</span><% } %></td>
+          </tr>
+          <tr><th scope="row">wait_timeout</th><td><span class="mono"><%= database.waitTimeout %></span> <span class="muted small">seconds</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="help">Keep DB_CONNECTION_LIMIT (per Node process) well below max_user_connections.</p>
+<% } else { -%>
+    <p><span class="badge badge-off">unavailable</span></p>
+    <p class="mono small"><%= database.error %></p>
+<% } -%>
+  </section>
+
+  <section class="card" aria-labelledby="cleanup-title">
+    <h2 class="card-title" id="cleanup-title">Cleanup job</h2>
+<% if (!ops) { -%>
+    <p class="muted">Status unavailable (database error).</p>
+<% } else { -%>
+<% if (ops.cleanup.lastCronRun) { -%>
+    <p>Last cron run <strong><%= fmt.relative(ops.cleanup.lastCronRun) %></strong> <span class="muted small">(<%= fmt.dateTime(ops.cleanup.lastCronRun) %>)</span></p>
+<% } else { -%>
+    <p>Last cron run <strong>none recorded</strong> <span class="muted small">(it is not set up, or has not run since this version was installed)</span></p>
+<% } -%>
+<% if (!ops.cleanup.lastRun) { -%>
+    <p class="muted">Cleanup has not run yet.</p>
+<% } else { -%>
+    <p>Last cleanup by any trigger <strong><%= fmt.relative(ops.cleanup.lastRun) %></strong> <span class="muted small">(<%= fmt.dateTime(ops.cleanup.lastRun) %>)</span></p>
+<% if (ops.cleanup.lastResult) { -%>
+    <div class="table-wrap">
+      <table class="table">
+        <tbody>
+<% Object.keys(ops.cleanup.lastResult).forEach(function (k) { -%>
+          <tr><th scope="row"><%= cleanupLabels[k] || k %></th><td class="mono"><%= typeof ops.cleanup.lastResult[k] === 'number' ? fmt.number(ops.cleanup.lastResult[k]) : String(ops.cleanup.lastResult[k]) %></td></tr>
+<% }); -%>
+        </tbody>
+      </table>
+    </div>
+<% } -%>
+<% } -%>
+<% } -%>
+    <p class="help">The hourly cPanel cron job (<span class="mono">npm run cleanup</span>) is what keeps this current; idle apps are stopped by the host, so the in-process timer (which also runs a minute after every start) is not enough. The warnings above track the cron job's own runs.</p>
+  </section>
+
+  <section class="card" aria-labelledby="authfail-title">
+    <h2 class="card-title" id="authfail-title">API authentication failures today</h2>
+<% if (!ops) { -%>
+    <p class="muted">Status unavailable (database error).</p>
+<% } else { -%>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr><th scope="col">Endpoint</th><th scope="col">Today</th><th scope="col">Last failure</th></tr>
+        </thead>
+        <tbody>
+<% ops.authFailures.forEach(function (f) { -%>
+          <tr>
+            <td class="mono"><%= f.label %></td>
+            <td><%= fmt.number(f.today) %></td>
+            <td>
+<% if (f.last) { -%>
+              <%= fmt.relative(f.last.at) %><span class="muted small"> · <%= f.last.reason %><% if (f.last.ip) { %> · <span class="mono"><%= f.last.ip %></span><% } %></span>
+<% } else { -%>
+              <span class="muted">never</span>
+<% } -%>
+            </td>
+          </tr>
+<% }); -%>
+        </tbody>
+      </table>
+    </div>
+    <p class="help">Rejected requests not written to the log today (an app over 60 rejections a minute, or over its own per-minute limit if higher):
+<% if (ops.droppedRejections.length) { -%>
+<% ops.droppedRejections.forEach(function (d, i) { -%>
+      <%= i ? ' · ' : '' %><a href="/admin/apps/<%= d.appId %>"><%= d.name %></a> <span class="mono"><%= fmt.number(d.count) %></span>
+<% }); -%>
+<% } else { -%>
+      none.
+<% } -%>
+    </p>
+<% } -%>
+  </section>
+</div>
+
+<section class="card" aria-labelledby="request-title">
+  <h2 class="card-title" id="request-title">This request, as the relay sees it</h2>
+  <p class="muted small">Behind cPanel's LiteSpeed proxy with TRUST_PROXY=1, the client IP should be your own public address and req.secure should be true.</p>
+  <div class="table-wrap">
+    <table class="table">
+      <tbody>
+<% requestRows.forEach(function (r) { -%>
+        <tr><th scope="row"><%= r.label %></th><td class="mono"><%= r.value %></td></tr>
+<% }); -%>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="ipcheck-title">
+  <h2 class="card-title" id="ipcheck-title">Client IP check</h2>
+  <p>Asks the relay for your IP twice: once normally and once with a forged <span class="mono">X-Forwarded-For: 198.51.100.77</span> header. If the forged address is accepted, IP allowlists and rate limits can be bypassed.</p>
+  <div class="row">
+    <button type="button" class="btn btn-primary" data-ip-check="/admin/system/ip-check" data-target="#ip-check-result">Run IP check</button>
+    <output id="ip-check-result" class="ip-check-result" aria-live="polite"></output>
+  </div>
+</section>
+<%- include('partials/foot') %>

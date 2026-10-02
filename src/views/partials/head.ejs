@@ -1,0 +1,48 @@
+<%
+  const user = locals.currentUser || null;
+  const activeKey = locals.activeNav || '';
+  const pageTitle = locals.title ? locals.title + ' · Relay' : 'Relay';
+  const navItems = [
+    { key: 'apps', href: '/admin', label: 'Apps' },
+    { key: 'logs', href: '/admin/logs', label: 'Logs' },
+    { key: 'stats', href: '/admin/stats', label: 'Stats' },
+    { key: 'audit', href: '/admin/audit', label: 'Audit' },
+    { key: 'users', href: '/admin/users', label: 'Users' },
+    { key: 'account', href: '/admin/account', label: 'Account' },
+    { key: 'system', href: '/admin/system', label: 'System' },
+  ];
+-%>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title><%= pageTitle %></title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:,">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="/admin">Relay</a>
+<% if (user) { -%>
+    <nav class="nav" aria-label="Main">
+<% navItems.forEach(function (item) { -%>
+      <a href="<%= item.href %>"<% if (activeKey === item.key) { %> class="nav-active" aria-current="page"<% } %>><%= item.label %></a>
+<% }); -%>
+    </nav>
+    <div class="header-user">
+      <span class="header-email small muted"><%= user.name || user.email %></span>
+      <form method="post" action="/admin/logout" class="logout-form">
+        <input type="hidden" name="_csrf" value="<%= locals.csrfToken %>">
+        <button type="submit" class="btn btn-secondary btn-small">Sign out</button>
+      </form>
+    </div>
+<% } -%>
+  </div>
+</header>
+<main id="main" class="container" tabindex="-1">
+<%- include('flash') %>

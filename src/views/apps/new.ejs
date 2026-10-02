@@ -1,0 +1,239 @@
+<%
+  // The app settings form. Rendered as its own page for a new app, and included
+  // by apps/show.ejs with { editApp: app } for an existing one, so both pages
+  // share one form definition. A submitted password is never written back.
+  const existing = locals.editApp || null;
+  const errs = locals.errors || {};
+  const f = locals.form || {};
+  const lim = locals.limits || { maxMb: '10', minMb: '0.1' };
+  const pwState = locals.passwordState || 'not set';
+  const formAction = existing ? '/admin/apps/' + existing.id : '/admin/apps';
+  // Edit mode: admin.js asks before a save that turns legacy signing on or off
+  // (it revokes every key). The baseline is the STORED value, not the checkbox's
+  // initial state, which after a 400 re-render is the submitted value.
+  const legacyConfirm = !existing
+    ? ''
+    : existing.legacySigning
+      ? 'Turn off legacy signing? Saving revokes every API key of this app immediately: /send.php stops working for it, and the site cannot send until you generate a new key for /v1/send and put it in the site.'
+      : 'Turn on legacy signing? Saving revokes every API key of this app immediately: the site cannot send until you generate a new key and use it to sign its /send.php requests.';
+-%>
+<% if (!existing) { -%>
+<%- include('../partials/head', { title }) %>
+<div class="page-header">
+  <h1>New app</h1>
+  <div class="actions">
+    <a class="btn btn-secondary" href="/admin">Cancel</a>
+  </div>
+</div>
+<% if (Object.keys(errs).length) { -%>
+<div class="flash flash-error" role="alert">Some settings need attention. Correct the fields marked below and submit again.</div>
+<% } -%>
+<% } -%>
+<form method="post" action="<%= formAction %>" class="form stack">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+<% if (existing) { -%>
+  <input type="hidden" name="expected_updated_at" value="<%= locals.expectedUpdatedAt || '' %>">
+<% } -%>
+
+  <section class="card" aria-labelledby="app-general-title">
+    <h2 class="card-title" id="app-general-title">General</h2>
+    <div class="field">
+      <label for="app-name">Name</label>
+      <input id="app-name" name="name" type="text" maxlength="150" required autocomplete="off" value="<%= f.name %>"<% if (errs.name) { %> aria-invalid="true" aria-describedby="app-name-error"<% } %>>
+<% if (errs.name) { -%>
+      <p class="error-text" id="app-name-error"><%= errs.name %></p>
+<% } -%>
+    </div>
+    <div class="field">
+      <label for="app-notes">Notes <span class="muted small">(optional)</span></label>
+      <textarea id="app-notes" name="notes" rows="3" maxlength="2000" aria-describedby="app-notes-help<% if (errs.notes) { %> app-notes-error<% } %>"<% if (errs.notes) { %> aria-invalid="true"<% } %>><%= f.notes %></textarea>
+      <p class="help" id="app-notes-help">For admins only: which site this is, who to contact, where the key is configured.</p>
+<% if (errs.notes) { -%>
+      <p class="error-text" id="app-notes-error"><%= errs.notes %></p>
+<% } -%>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="enabled" value="1"<%= f.enabled ? ' checked' : '' %>>
+        <span>Enabled</span>
+      </label>
+      <p class="help">A disabled app's requests are refused with 403. Test emails still work.</p>
+    </div>
+    <div class="field">
+      <label class="checkbox">
+        <input type="checkbox" name="legacy_signing" value="1"<%= f.legacy_signing ? ' checked' : '' %><% if (existing) { %> data-confirm-if-changed="<%= legacyConfirm %>" data-confirm-baseline="<%= existing.legacySigning ? '1' : '0' %>"<% } %>>
+        <span>Legacy signing (/send.php)</span>
+      </label>
+      <p class="help">For the existing PHP app that signs requests to /send.php with an HMAC. Its key is stored encrypted (recoverable) instead of hashed, and cannot be used with /v1/send.</p>
+<% if (existing) { -%>
+      <p class="warning">Turning this on or off revokes every API key of this app. You will need to generate a new key and update the site.</p>
+<% } -%>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="app-smtp-title">
+    <h2 class="card-title" id="app-smtp-title">SMTP server</h2>
+    <p class="help">The mailbox Relay sends through for this app, e.g. the site's own email account at its host.</p>
+    <div class="grid-2">
+      <div class="field">
+        <label for="app-smtp_host">Host</label>
+        <input id="app-smtp_host" name="smtp_host" type="text" maxlength="255" required autocomplete="off" autocapitalize="none" spellcheck="false" value="<%= f.smtp_host %>"<% if (errs.smtp_host) { %> aria-invalid="true" aria-describedby="app-smtp_host-error"<% } %>>
+<% if (errs.smtp_host) { -%>
+        <p class="error-text" id="app-smtp_host-error"><%= errs.smtp_host %></p>
+<% } -%>
+      </div>
+      <div class="field">
+        <label for="app-smtp_port">Port</label>
+        <input id="app-smtp_port" name="smtp_port" type="number" min="1" max="65535" step="1" required inputmode="numeric" value="<%= f.smtp_port %>"<% if (errs.smtp_port) { %> aria-invalid="true" aria-describedby="app-smtp_port-error"<% } %>>
+<% if (errs.smtp_port) { -%>
+        <p class="error-text" id="app-smtp_port-error"><%= errs.smtp_port %></p>
+<% } -%>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="app-smtp_encryption">Encryption</label>
+        <select id="app-smtp_encryption" name="smtp_encryption" aria-describedby="app-smtp_encryption-help<% if (f.smtp_encryption === 'none') { %> app-smtp_encryption-warning<% } %><% if (errs.smtp_encryption) { %> app-smtp_encryption-error<% } %>"<% if (errs.smtp_encryption) { %> aria-invalid="true"<% } %>>
+          <option value="ssl"<%= f.smtp_encryption === 'ssl' ? ' selected' : '' %>>SSL/TLS (usually port 465)</option>
+          <option value="starttls"<%= f.smtp_encryption === 'starttls' ? ' selected' : '' %>>STARTTLS (usually port 587)</option>
+          <option value="none"<%= f.smtp_encryption === 'none' ? ' selected' : '' %>>None (not encrypted)</option>
+        </select>
+        <p class="help" id="app-smtp_encryption-help">Certificates are always verified. SSL/TLS on a STARTTLS port (or the reverse) fails to connect.</p>
+<% if (f.smtp_encryption === 'none') { -%>
+        <p class="warning" id="app-smtp_encryption-warning">Encryption "none" sends the SMTP username, password and every message across the network in clear text. Use it only for a server on the same machine or a trusted private network.</p>
+<% } -%>
+<% if (errs.smtp_encryption) { -%>
+        <p class="error-text" id="app-smtp_encryption-error"><%= errs.smtp_encryption %></p>
+<% } -%>
+      </div>
+      <div class="field">
+        <label for="app-smtp_username">Username <span class="muted small">(optional)</span></label>
+        <input id="app-smtp_username" name="smtp_username" type="text" maxlength="255" autocomplete="off" autocapitalize="none" spellcheck="false" value="<%= f.smtp_username %>" aria-describedby="app-smtp_username-help<% if (errs.smtp_username) { %> app-smtp_username-error<% } %>"<% if (errs.smtp_username) { %> aria-invalid="true"<% } %>>
+        <p class="help" id="app-smtp_username-help">Usually the full mailbox address. Leave empty for a server that needs no login.</p>
+<% if (errs.smtp_username) { -%>
+        <p class="error-text" id="app-smtp_username-error"><%= errs.smtp_username %></p>
+<% } -%>
+      </div>
+    </div>
+    <div class="field">
+<% if (existing) { -%>
+      <label for="app-smtp_password">Change SMTP password</label>
+      <p class="small">Stored password:
+<% if (pwState === 'set') { -%>
+        <span class="badge badge-ok">set</span>
+<% } else if (pwState === 'unreadable') { -%>
+        <span class="badge badge-off">set, but cannot be decrypted</span>
+<% } else { -%>
+        <span class="badge badge-off">not set</span>
+<% } -%>
+      </p>
+<% } else { -%>
+      <label for="app-smtp_password">SMTP password <span class="muted small">(optional)</span></label>
+<% } -%>
+      <input id="app-smtp_password" name="smtp_password" type="password" maxlength="500" autocomplete="new-password" value="" aria-describedby="app-smtp_password-help<% if (errs.smtp_password) { %> app-smtp_password-error<% } %>"<% if (errs.smtp_password) { %> aria-invalid="true"<% } %>>
+<% if (existing) { -%>
+      <p class="help" id="app-smtp_password-help">Leave blank to keep the stored password. Required whenever you change the host, port, encryption or username: if you change any of them without entering the password, the stored password is cleared. It is stored encrypted and never shown again.</p>
+<% } else { -%>
+      <p class="help" id="app-smtp_password-help">Stored encrypted and never shown again. Needed when a username is set.</p>
+<% } -%>
+<% if (errs.smtp_password) { -%>
+      <p class="error-text" id="app-smtp_password-error"><%= errs.smtp_password %></p>
+<% } -%>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="app-sender-title">
+    <h2 class="card-title" id="app-sender-title">Sender</h2>
+    <div class="grid-2">
+      <div class="field">
+        <label for="app-from_email">From address</label>
+        <input id="app-from_email" name="from_email" type="email" maxlength="254" required autocomplete="off" autocapitalize="none" spellcheck="false" value="<%= f.from_email %>" aria-describedby="app-from_email-help<% if (errs.from_email) { %> app-from_email-error<% } %>"<% if (errs.from_email) { %> aria-invalid="true"<% } %>>
+        <p class="help" id="app-from_email-help">Every message is sent from this address unless the caller picks one of the allowed addresses below. Most SMTP servers only accept their own mailbox here.</p>
+<% if (errs.from_email) { -%>
+        <p class="error-text" id="app-from_email-error"><%= errs.from_email %></p>
+<% } -%>
+      </div>
+      <div class="field">
+        <label for="app-from_name">From name <span class="muted small">(optional)</span></label>
+        <input id="app-from_name" name="from_name" type="text" maxlength="150" autocomplete="off" value="<%= f.from_name %>" aria-describedby="app-from_name-help<% if (errs.from_name) { %> app-from_name-error<% } %>"<% if (errs.from_name) { %> aria-invalid="true"<% } %>>
+        <p class="help" id="app-from_name-help">Always taken from here; callers cannot change it.</p>
+<% if (errs.from_name) { -%>
+        <p class="error-text" id="app-from_name-error"><%= errs.from_name %></p>
+<% } -%>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="app-allowed_from">Other allowed From addresses <span class="muted small">(optional)</span></label>
+        <textarea id="app-allowed_from" name="allowed_from" rows="3" autocapitalize="none" spellcheck="false" aria-describedby="app-allowed_from-help<% if (errs.allowed_from) { %> app-allowed_from-error<% } %>"<% if (errs.allowed_from) { %> aria-invalid="true"<% } %>><%= f.allowed_from %></textarea>
+        <p class="help" id="app-allowed_from-help">One per line, up to 20. A /v1/send caller may pass one of these (or the From address) as "from"; anything else is refused.</p>
+<% if (errs.allowed_from) { -%>
+        <p class="error-text" id="app-allowed_from-error"><%= errs.allowed_from %></p>
+<% } -%>
+      </div>
+      <div class="field">
+        <label for="app-reply_to_default">Default Reply-To <span class="muted small">(optional)</span></label>
+        <input id="app-reply_to_default" name="reply_to_default" type="email" maxlength="254" autocomplete="off" autocapitalize="none" spellcheck="false" value="<%= f.reply_to_default %>" aria-describedby="app-reply_to_default-help<% if (errs.reply_to_default) { %> app-reply_to_default-error<% } %>"<% if (errs.reply_to_default) { %> aria-invalid="true"<% } %>>
+        <p class="help" id="app-reply_to_default-help">Used when a message has no reply_to of its own.</p>
+<% if (errs.reply_to_default) { -%>
+        <p class="error-text" id="app-reply_to_default-error"><%= errs.reply_to_default %></p>
+<% } -%>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="app-limits-title">
+    <h2 class="card-title" id="app-limits-title">Limits and access</h2>
+    <div class="grid-2">
+      <div class="field">
+        <label for="app-limit_per_minute">Messages per minute</label>
+        <input id="app-limit_per_minute" name="limit_per_minute" type="number" min="1" max="10000" step="1" required inputmode="numeric" value="<%= f.limit_per_minute %>"<% if (errs.limit_per_minute) { %> aria-invalid="true" aria-describedby="app-limit_per_minute-error"<% } %>>
+<% if (errs.limit_per_minute) { -%>
+        <p class="error-text" id="app-limit_per_minute-error"><%= errs.limit_per_minute %></p>
+<% } -%>
+      </div>
+      <div class="field">
+        <label for="app-limit_per_day">Messages per day</label>
+        <input id="app-limit_per_day" name="limit_per_day" type="number" min="1" max="1000000" step="1" required inputmode="numeric" value="<%= f.limit_per_day %>" aria-describedby="app-limit_per_day-help<% if (errs.limit_per_day) { %> app-limit_per_day-error<% } %>"<% if (errs.limit_per_day) { %> aria-invalid="true"<% } %>>
+        <p class="help" id="app-limit_per_day-help">The day runs midnight to midnight in the relay's time zone. Check what the mailbox provider allows per day.</p>
+<% if (errs.limit_per_day) { -%>
+        <p class="error-text" id="app-limit_per_day-error"><%= errs.limit_per_day %></p>
+<% } -%>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="app-max_message_mb">Maximum message size (MB)</label>
+        <input id="app-max_message_mb" name="max_message_mb" type="number" min="<%= lim.minMb %>" max="<%= lim.maxMb %>" step="any" required inputmode="decimal" value="<%= f.max_message_mb %>" aria-describedby="app-max_message_mb-help<% if (errs.max_message_mb) { %> app-max_message_mb-error<% } %>"<% if (errs.max_message_mb) { %> aria-invalid="true"<% } %>>
+        <p class="help" id="app-max_message_mb-help">Subject, HTML, text, display names and decoded attachments (plus 1 KB and 6 bytes per filename byte for each attachment) together; at most <%= lim.maxMb %> MB (the relay-wide limit).</p>
+<% if (errs.max_message_mb) { -%>
+        <p class="error-text" id="app-max_message_mb-error"><%= errs.max_message_mb %></p>
+<% } -%>
+      </div>
+      <div class="field">
+        <label for="app-max_recipients">Maximum recipients per message</label>
+        <input id="app-max_recipients" name="max_recipients" type="number" min="1" max="1000" step="1" required inputmode="numeric" value="<%= f.max_recipients %>" aria-describedby="app-max_recipients-help<% if (errs.max_recipients) { %> app-max_recipients-error<% } %>"<% if (errs.max_recipients) { %> aria-invalid="true"<% } %>>
+        <p class="help" id="app-max_recipients-help">Unique to + cc + bcc addresses.</p>
+<% if (errs.max_recipients) { -%>
+        <p class="error-text" id="app-max_recipients-error"><%= errs.max_recipients %></p>
+<% } -%>
+      </div>
+    </div>
+    <div class="field">
+      <label for="app-ip_allowlist">IP allowlist <span class="muted small">(optional)</span></label>
+      <textarea id="app-ip_allowlist" name="ip_allowlist" rows="3" autocapitalize="none" spellcheck="false" aria-describedby="app-ip_allowlist-help<% if (errs.ip_allowlist) { %> app-ip_allowlist-error<% } %>"<% if (errs.ip_allowlist) { %> aria-invalid="true"<% } %>><%= f.ip_allowlist %></textarea>
+      <p class="help" id="app-ip_allowlist-help">One IP address or CIDR range per line, up to 50 (e.g. 203.0.113.10 or 2001:db8::/48). Leave empty to accept requests from any address. Check the address Relay sees on the System page.</p>
+<% if (errs.ip_allowlist) { -%>
+      <p class="error-text" id="app-ip_allowlist-error"><%= errs.ip_allowlist %></p>
+<% } -%>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button type="submit" class="btn btn-primary"><%= existing ? 'Save settings' : 'Create app' %></button>
+    <a class="btn btn-secondary" href="<%= existing ? '/admin/apps/' + existing.id : '/admin' %>">Cancel</a>
+  </div>
+</form>
+<% if (!existing) { -%>
+<%- include('../partials/foot') %>
+<% } -%>

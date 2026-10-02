@@ -1,0 +1,150 @@
+<%- include('partials/head', { title }) %>
+<%
+  const statusLabels = { all: 'All statuses', sent: 'Sent', failed: 'Failed (incl. rejected, unknown)', sending: 'Sending' };
+  const statusBadges = { sent: 'badge-ok', failed: 'badge-off', rejected: 'badge-off', unknown: 'badge-off', sending: 'badge-warn' };
+  // Address lists can be up to 65,000 characters: the cell shows the start, and
+  // the tooltip (only when the cell is cut) a little more, never the whole list.
+  // The recipient filter searches the full stored lists.
+  const ADDR_SHOWN = 120;
+  const ADDR_TITLE = 300;
+  const TEXT_SHOWN = 300;
+  const TEXT_TITLE = 1000;
+  function longer(s, n) {
+    return typeof s === 'string' && s.length > n;
+  }
+  const addrLists = [['to', 'toAddrs'], ['cc', 'ccAddrs'], ['bcc', 'bccAddrs']];
+-%>
+<div class="page-header">
+  <h1>Message log</h1>
+</div>
+
+<%# Collapsed on phones unless a filter is set; admin.js opens it on wide screens. -%>
+<details class="filters" data-open-wide<%= filtered ? ' open' : '' %>>
+  <summary>Filters<% if (activeFilters > 0) { %> <span class="badge badge-info"><%= activeFilters %> active</span><% } %></summary>
+<form method="get" action="/admin/logs" role="search" aria-label="Filter the message log">
+  <div class="field">
+    <label for="logs-app">App</label>
+    <select id="logs-app" name="app" data-autosubmit>
+      <option value="">All apps</option>
+<% apps.forEach(function (a) { -%>
+      <option value="<%= a.id %>"<%= String(a.id) === filters.app ? ' selected' : '' %>><%= a.name %></option>
+<% }); -%>
+    </select>
+  </div>
+  <div class="field">
+    <label for="logs-status">Status</label>
+    <select id="logs-status" name="status" data-autosubmit>
+<% statusFilters.forEach(function (s) { -%>
+      <option value="<%= s %>"<%= s === filters.status ? ' selected' : '' %>><%= statusLabels[s] || s %></option>
+<% }); -%>
+    </select>
+  </div>
+  <div class="field">
+    <label for="logs-from">From day</label>
+    <input id="logs-from" name="from" type="date" value="<%= filters.from %>">
+  </div>
+  <div class="field">
+    <label for="logs-to">To day</label>
+    <input id="logs-to" name="to" type="date" value="<%= filters.to %>">
+  </div>
+  <div class="field">
+    <label for="logs-recipient">Recipient contains</label>
+    <input id="logs-recipient" name="recipient" type="search" maxlength="254" autocapitalize="none" spellcheck="false" value="<%= filters.recipient %>">
+  </div>
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Filter</button>
+<% if (filtered) { -%>
+    <a class="btn btn-secondary" href="/admin/logs">Clear</a>
+<% } -%>
+  </div>
+</form>
+</details>
+
+<% if (rows.length === 0) { -%>
+<section class="card empty">
+<% if (total > 0) { -%>
+  <p>This page is past the end of the results.</p>
+<% } else if (filtered) { -%>
+  <p>No messages match these filters.</p>
+<% } else { -%>
+  <p>No messages yet. Messages appear here as soon as an app sends (or tries to send) one.</p>
+<% } -%>
+</section>
+<% } else { -%>
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th scope="col">Time</th>
+        <th scope="col">App</th>
+        <th scope="col">Source</th>
+        <th scope="col">Recipients</th>
+        <th scope="col">Subject</th>
+        <th scope="col">Size</th>
+        <th scope="col">Status</th>
+        <th scope="col">SMTP response / error</th>
+      </tr>
+    </thead>
+    <tbody>
+<% rows.forEach(function (m) { -%>
+      <tr>
+        <td>
+          <%= fmt.dateTime(m.createdAt) %>
+          <div class="small muted mono"><%= m.publicId %></div>
+<% if (m.clientMessageId) { -%>
+          <div class="small muted" title="<%= m.clientMessageId %>">message_id <span class="mono"><%= fmt.truncate(m.clientMessageId, 40) %></span></div>
+<% } -%>
+        </td>
+        <td>
+<% if (m.appName) { -%>
+          <a href="/admin/apps/<%= m.appId %>"><%= m.appName %></a>
+<% } else { -%>
+          <span class="muted">app #<%= m.appId %></span>
+<% } -%>
+        </td>
+        <td><%= m.source %></td>
+        <td class="small">
+<% let cut = false; -%>
+<% addrLists.forEach(function (pair) { const list = m[pair[1]]; if (!list) return; const isCut = longer(list, ADDR_SHOWN); cut = cut || isCut; -%>
+          <div<% if (isCut) { %> title="<%= fmt.truncate(list, ADDR_TITLE) %>"<% } %>><span class="muted"><%= pair[0] %></span> <%= fmt.truncate(list, ADDR_SHOWN) %></div>
+<% }); -%>
+<% if (cut && m.recipientCount > 0) { -%>
+          <div class="muted"><%= fmt.number(m.recipientCount) %> recipient<%= m.recipientCount === 1 ? '' : 's' %> in all</div>
+<% } -%>
+<% if (!m.toAddrs && !m.ccAddrs && !m.bccAddrs) { -%>
+          <span class="muted">—</span>
+<% } -%>
+        </td>
+        <td><%= m.subject === null || m.subject === undefined ? '—' : fmt.truncate(m.subject, 80) %></td>
+        <td>
+          <%= fmt.bytes(m.sizeBytes) %>
+<% if (m.attachmentCount > 0) { -%>
+          <div class="small muted"><%= fmt.number(m.attachmentCount) %> attachment<%= m.attachmentCount === 1 ? '' : 's' %></div>
+<% } -%>
+        </td>
+        <td>
+          <span class="badge <%= statusBadges[m.status] || 'badge-off' %>"><%= m.status %></span>
+<% if (m.httpStatus) { -%>
+          <div class="small muted">HTTP <%= m.httpStatus %></div>
+<% } -%>
+        </td>
+        <td class="small">
+<% if (m.error) { -%>
+          <div class="error-text"<% if (longer(m.error, TEXT_SHOWN)) { %> title="<%= fmt.truncate(m.error, TEXT_TITLE) %>"<% } %>><%= fmt.truncate(m.error, TEXT_SHOWN) %></div>
+<% } -%>
+<% if (m.showSmtpResponse) { -%>
+          <div class="mono muted"<% if (longer(m.smtpResponse, TEXT_SHOWN)) { %> title="<%= fmt.truncate(m.smtpResponse, TEXT_TITLE) %>"<% } %>><%= fmt.truncate(m.smtpResponse, TEXT_SHOWN) %></div>
+<% } -%>
+<% if (!m.error && !m.smtpResponse) { -%>
+          <span class="muted">—</span>
+<% } -%>
+        </td>
+      </tr>
+<% }); -%>
+    </tbody>
+  </table>
+</div>
+<% } -%>
+<%- include('partials/pagination', { page, pageSize, total, path: '/admin/logs', query: linkQuery }) %>
+<p class="help">Times are in the relay's time zone. Log entries are kept for a limited number of days and never include message bodies or attachments.</p>
+<%- include('partials/foot') %>

@@ -1,0 +1,147 @@
+<%- include('partials/head', { title: 'Account' }) %>
+<%
+  const errs = locals.errors || {};
+  const acc = account;
+  const minChars = locals.minPasswordChars || 12;
+-%>
+<div class="page-header">
+  <h1>Account</h1>
+</div>
+
+<div class="grid-2">
+  <section class="card" aria-labelledby="profile-title">
+    <h2 class="card-title" id="profile-title">Profile</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <tbody>
+          <tr><th scope="row">Email</th><td><%= acc.email %></td></tr>
+          <tr><th scope="row">Name</th><td><%= acc.name || '—' %></td></tr>
+          <tr>
+            <th scope="row">Two-factor</th>
+            <td>
+<% if (acc.totpEnabled) { -%>
+              <span class="badge badge-ok">on</span>
+<% } else if (acc.totpPending) { -%>
+              <span class="badge badge-warn">setup not finished</span>
+<% } else { -%>
+              <span class="badge badge-off">off</span>
+<% } -%>
+            </td>
+          </tr>
+          <tr><th scope="row">Last sign-in</th><td><%= fmt.dateTime(acc.lastLoginAt) %></td></tr>
+          <tr><th scope="row">Created</th><td><%= fmt.date(acc.createdAt) %></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="password-title">
+    <h2 class="card-title" id="password-title">Change password</h2>
+    <form method="post" action="/admin/account/password" class="form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field">
+        <label for="pw-current">Current password</label>
+        <input id="pw-current" name="current_password" type="password" autocomplete="current-password" required<% if (errs.current_password) { %> aria-invalid="true" aria-describedby="pw-current-error"<% } %>>
+<% if (errs.current_password) { -%>
+        <p class="error-text" id="pw-current-error"><%= errs.current_password %></p>
+<% } -%>
+      </div>
+      <div class="field">
+        <label for="pw-new">New password</label>
+        <input id="pw-new" name="new_password" type="password" autocomplete="new-password" minlength="<%= minChars %>" required aria-describedby="pw-new-help<% if (errs.new_password) { %> pw-new-error<% } %>"<% if (errs.new_password) { %> aria-invalid="true"<% } %>>
+        <p class="help" id="pw-new-help">At least <%= minChars %> characters. A long passphrase is best.</p>
+<% if (errs.new_password) { -%>
+        <p class="error-text" id="pw-new-error"><%= errs.new_password %></p>
+<% } -%>
+      </div>
+      <div class="field">
+        <label for="pw-confirm">Repeat the new password</label>
+        <input id="pw-confirm" name="confirm_password" type="password" autocomplete="new-password" required<% if (errs.confirm_password) { %> aria-invalid="true" aria-describedby="pw-confirm-error"<% } %>>
+<% if (errs.confirm_password) { -%>
+        <p class="error-text" id="pw-confirm-error"><%= errs.confirm_password %></p>
+<% } -%>
+      </div>
+      <p class="help">Changing your password signs you out on every other device.</p>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Change password</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<section class="card" aria-labelledby="totp-title">
+  <h2 class="card-title" id="totp-title">Two-factor authentication</h2>
+<% if (locals.setup) { -%>
+  <p>Scan the QR code with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Bitwarden…), then enter the 6-digit code it shows to finish.</p>
+  <div class="totp-setup">
+    <img class="qr" src="<%= setup.qrDataUrl %>" width="220" height="220" alt="QR code to add Relay to your authenticator app">
+    <div class="stack totp-setup-side">
+      <div>
+        <p class="small muted">Cannot scan it? Enter this key in the app instead:</p>
+        <div class="row">
+          <code class="key-reveal mono"><%= setup.secretGrouped %></code>
+          <span id="totp-secret" hidden><%= setup.secret %></span>
+          <button type="button" class="btn btn-secondary btn-small" data-copy="#totp-secret">Copy key</button>
+        </div>
+        <p class="help">The key is shown only on this page. Do not save it anywhere else.</p>
+      </div>
+      <form method="post" action="/admin/account/totp/enable" class="form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="field-inline">
+          <div class="field">
+            <label for="totp-enable-code">Code from the app</label>
+            <input id="totp-enable-code" name="code" type="text" class="mono input-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="9" required autofocus>
+          </div>
+          <button type="submit" class="btn btn-primary">Turn on</button>
+        </div>
+      </form>
+    </div>
+  </div>
+<% } else if (acc.totpEnabled) { -%>
+  <p>Signing in asks for a code from your authenticator app as well as your password.</p>
+  <form method="post" action="/admin/account/totp/disable" class="form" data-confirm="Turn off two-factor authentication for your account?">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="field-inline">
+      <div class="field">
+        <label for="totp-disable-pw">Current password</label>
+        <input id="totp-disable-pw" name="current_password" type="password" autocomplete="current-password" required<% if (errs.disable_password) { %> aria-invalid="true" aria-describedby="totp-disable-error"<% } %>>
+      </div>
+      <button type="submit" class="btn btn-danger">Turn off two-factor</button>
+    </div>
+<% if (errs.disable_password) { -%>
+    <p class="error-text" id="totp-disable-error"><%= errs.disable_password %></p>
+<% } -%>
+  </form>
+<% } else { -%>
+<% if (acc.totpPending) { -%>
+  <p>Setup was started but not finished. Enter the current code from your authenticator app to turn two-factor authentication on, or start again to get a new QR code.</p>
+  <form method="post" action="/admin/account/totp/enable" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="field-inline">
+      <div class="field">
+        <label for="totp-finish-code">Code from the app</label>
+        <input id="totp-finish-code" name="code" type="text" class="mono input-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="9" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Turn on</button>
+    </div>
+  </form>
+  <hr>
+<% } else { -%>
+  <p>Protect your account with a 6-digit code from an authenticator app on your phone, asked for at every sign-in.</p>
+<% } -%>
+  <form method="post" action="/admin/account/totp/setup" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="field-inline">
+      <div class="field">
+        <label for="totp-setup-pw">Current password</label>
+        <input id="totp-setup-pw" name="current_password" type="password" autocomplete="current-password" required<% if (errs.setup_password) { %> aria-invalid="true" aria-describedby="totp-setup-error"<% } %>>
+      </div>
+      <button type="submit" class="btn <%= acc.totpPending ? 'btn-secondary' : 'btn-primary' %>"><%= acc.totpPending ? 'Start again' : 'Set up two-factor' %></button>
+    </div>
+<% if (errs.setup_password) { -%>
+    <p class="error-text" id="totp-setup-error"><%= errs.setup_password %></p>
+<% } -%>
+  </form>
+<% } -%>
+</section>
+<%- include('partials/foot') %>

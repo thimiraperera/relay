@@ -1,0 +1,11 @@
+<%
+  const flashItems = Array.isArray(locals.flash) ? locals.flash : [];
+  const flashKinds = ['success', 'error', 'info', 'warning'];
+-%>
+<% if (flashItems.length) { -%>
+<div class="flash-stack">
+<% flashItems.forEach(function (f) { const kind = flashKinds.includes(f.type) ? f.type : 'info'; -%>
+  <div class="flash flash-<%= kind %>" role="<%= kind === 'error' ? 'alert' : 'status' %>"><%= f.text %></div>
+<% }); -%>
+</div>
+<% } -%>

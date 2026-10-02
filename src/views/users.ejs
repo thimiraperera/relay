@@ -1,0 +1,137 @@
+<%- include('partials/head', { title: 'Users' }) %>
+<%
+  const errs = locals.errors || {};
+  const minChars = locals.minPasswordChars || 12;
+-%>
+<div class="page-header">
+  <h1>Admin users</h1>
+</div>
+
+<section class="card" aria-labelledby="admins-title">
+  <h2 class="card-title" id="admins-title">Admins</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">Email</th>
+          <th scope="col">Name</th>
+          <th scope="col">Status</th>
+          <th scope="col">Two-factor</th>
+          <th scope="col">Last sign-in</th>
+          <th scope="col">Created</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+<% admins.forEach(function (a) { -%>
+        <tr>
+          <td class="nowrap"><span class="mono"><%= a.email %></span><% if (a.isSelf) { %> <span class="badge badge-info">you</span><% } %></td>
+          <td><%= a.name || '—' %></td>
+          <td><span class="badge <%= a.disabled ? 'badge-off' : 'badge-ok' %>"><%= a.disabled ? 'disabled' : 'enabled' %></span></td>
+          <td><span class="badge <%= a.totpEnabled ? 'badge-ok' : 'badge-off' %>"><%= a.totpEnabled ? 'on' : 'off' %></span></td>
+          <td class="nowrap"><span title="<%= fmt.dateTime(a.lastLoginAt) %>"><%= fmt.relative(a.lastLoginAt) %></span></td>
+          <td class="nowrap"><%= fmt.date(a.createdAt) %></td>
+          <td>
+            <div class="actions">
+<% if (a.disabled) { -%>
+              <details class="inline-details">
+                <summary class="btn btn-secondary btn-small">Enable</summary>
+                <form method="post" action="/admin/users/<%= a.id %>/enable" class="form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <p class="help">Lets <%= a.email %> sign in again with their existing password and two-factor settings.</p>
+                  <div class="field">
+                    <label for="enable-<%= a.id %>-current">Your current password</label>
+                    <input id="enable-<%= a.id %>-current" name="current_password" type="password" autocomplete="current-password" required>
+                  </div>
+                  <div class="actions">
+                    <button type="submit" class="btn btn-primary btn-small">Enable admin</button>
+                  </div>
+                </form>
+              </details>
+<% } else if (!a.isSelf && enabledCount > 1) { -%>
+              <details class="inline-details">
+                <summary class="btn btn-secondary btn-small">Disable</summary>
+                <form method="post" action="/admin/users/<%= a.id %>/disable" class="form" data-confirm="Disable <%= a.email %>? They are signed out immediately.">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <div class="field">
+                    <label for="disable-<%= a.id %>-current">Your current password</label>
+                    <input id="disable-<%= a.id %>-current" name="current_password" type="password" autocomplete="current-password" required>
+                  </div>
+                  <div class="actions">
+                    <button type="submit" class="btn btn-danger btn-small">Disable admin</button>
+                  </div>
+                </form>
+              </details>
+<% } -%>
+              <details class="inline-details">
+                <summary class="btn btn-secondary btn-small">Reset password</summary>
+                <form method="post" action="/admin/users/<%= a.id %>/reset-password" class="form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <div class="field">
+                    <label for="reset-<%= a.id %>-new">New password for <%= a.email %></label>
+                    <input id="reset-<%= a.id %>-new" name="new_password" type="password" autocomplete="new-password" minlength="<%= minChars %>" required>
+                  </div>
+<% if (a.totpEnabled) { -%>
+                  <label class="checkbox">
+                    <input type="checkbox" name="disable_totp" value="1">
+                    <span>Also turn off two-factor authentication (lost device)</span>
+                  </label>
+<% } -%>
+                  <div class="field">
+                    <label for="reset-<%= a.id %>-current">Your current password</label>
+                    <input id="reset-<%= a.id %>-current" name="current_password" type="password" autocomplete="current-password" required>
+                  </div>
+                  <div class="actions">
+                    <button type="submit" class="btn btn-primary btn-small">Reset password</button>
+                  </div>
+                </form>
+              </details>
+            </div>
+          </td>
+        </tr>
+<% }); -%>
+      </tbody>
+    </table>
+  </div>
+  <p class="help">Adding, enabling or disabling an admin and resetting a password all ask for your current password. A reset or disable signs that admin out everywhere. You cannot disable yourself or the last enabled admin.</p>
+</section>
+
+<section class="card" aria-labelledby="add-admin-title">
+  <h2 class="card-title" id="add-admin-title">Add an admin</h2>
+  <form method="post" action="/admin/users" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="field">
+      <label for="new-email">Email</label>
+      <input id="new-email" name="email" type="email" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="191" required value="<%= form.email %>"<% if (errs.email) { %> aria-invalid="true" aria-describedby="new-email-error"<% } %>>
+<% if (errs.email) { -%>
+      <p class="error-text" id="new-email-error"><%= errs.email %></p>
+<% } -%>
+    </div>
+    <div class="field">
+      <label for="new-name">Name <span class="muted small">(optional)</span></label>
+      <input id="new-name" name="name" type="text" autocomplete="off" maxlength="100" value="<%= form.name %>"<% if (errs.name) { %> aria-invalid="true" aria-describedby="new-name-error"<% } %>>
+<% if (errs.name) { -%>
+      <p class="error-text" id="new-name-error"><%= errs.name %></p>
+<% } -%>
+    </div>
+    <div class="field">
+      <label for="new-password">Password</label>
+      <input id="new-password" name="password" type="password" autocomplete="new-password" minlength="<%= minChars %>" required aria-describedby="new-password-help<% if (errs.password) { %> new-password-error<% } %>"<% if (errs.password) { %> aria-invalid="true"<% } %>>
+      <p class="help" id="new-password-help">At least <%= minChars %> characters. Give it to the new admin over a separate channel; they can change it under Account.</p>
+<% if (errs.password) { -%>
+      <p class="error-text" id="new-password-error"><%= errs.password %></p>
+<% } -%>
+    </div>
+    <div class="field">
+      <label for="new-current">Your current password</label>
+      <input id="new-current" name="current_password" type="password" autocomplete="current-password" required<% if (errs.current_password) { %> aria-invalid="true" aria-describedby="new-current-error"<% } %>>
+<% if (errs.current_password) { -%>
+      <p class="error-text" id="new-current-error"><%= errs.current_password %></p>
+<% } -%>
+    </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Add admin</button>
+    </div>
+  </form>
+</section>
+<%- include('partials/foot') %>

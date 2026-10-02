@@ -1,0 +1,197 @@
+<%- include('../partials/head', { title }) %>
+<%
+  const errs = locals.errors || {};
+  const keyBadges = { active: 'badge-ok', grace: 'badge-warn', revoked: 'badge-off', expired: 'badge-off' };
+  const currentApiKey = locals.activeApiKey || null;
+  const cannotSend = Boolean(app.smtpUsername) && passwordState !== 'set';
+  // Two saves within one second store updated_at a second ahead (it doubles as
+  // the form's version token); never show that as "in a few seconds".
+  const updatedShown = locals.now && app.updatedAt && app.updatedAt > locals.now ? locals.now : app.updatedAt;
+  const snippetTabs = [
+    { id: 'snippet-curl', label: 'curl', text: snippets.curl },
+    { id: 'snippet-php', label: 'PHP', text: snippets.php },
+    { id: 'snippet-node', label: 'Node.js', text: snippets.node },
+  ];
+-%>
+<div class="page-header">
+  <div>
+    <h1><%= app.name %></h1>
+    <div class="row">
+      <span class="badge <%= app.enabled ? 'badge-ok' : 'badge-off' %>"><%= app.enabled ? 'enabled' : 'disabled' %></span>
+<% if (app.legacySigning) { -%>
+      <span class="badge badge-info">legacy signing</span>
+<% } -%>
+      <span class="small muted">Last used <span title="<%= fmt.dateTime(app.lastUsedAt) %>"><%= fmt.relative(app.lastUsedAt) %></span></span>
+      <span class="small muted">Created <span title="<%= fmt.dateTime(app.createdAt) %>"><%= fmt.date(app.createdAt) %></span></span>
+      <span class="small muted">Updated <span title="<%= fmt.dateTime(app.updatedAt) %>"><%= fmt.relative(updatedShown) %></span></span>
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-secondary" href="/admin/logs?app=<%= app.id %>">View log</a>
+    <a class="btn btn-secondary" href="/admin/stats?app=<%= app.id %>">Stats</a>
+  </div>
+</div>
+
+<% if (Object.keys(errs).length) { -%>
+<div class="flash flash-error" role="alert">The settings were not saved. Correct the fields marked in <a href="#settings">Settings</a> and save again.</div>
+<% } -%>
+<% if (cannotSend) { -%>
+<p class="warning">This app cannot send: a username is set but <%= passwordState === 'unreadable' ? 'the stored SMTP password cannot be decrypted' : 'no SMTP password is stored' %>. Enter the password in <a href="#settings">Settings</a>.</p>
+<% } -%>
+<% if (!app.enabled) { -%>
+<p class="warning">This app is disabled: its API requests are refused with 403 until you enable it again.</p>
+<% } -%>
+
+<section class="card" id="keys" aria-labelledby="keys-title">
+  <h2 class="card-title" id="keys-title">API keys</h2>
+<% if (app.legacySigning) { -%>
+  <p class="help">Legacy signing is on: the key is the HMAC secret for /send.php and is stored encrypted so Relay can check signatures. It cannot be used with /v1/send.</p>
+<% } else { -%>
+  <p class="help">Send the key as <span class="mono">Authorization: Bearer &lt;key&gt;</span> to /v1/send. Relay stores only a hash of it, so the full key is shown once, right after it is generated.</p>
+<% } -%>
+<% if (keys.length === 0) { -%>
+  <p class="empty">No keys yet. Generate one to start sending.</p>
+<% } else { -%>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">Prefix</th>
+          <th scope="col">Status</th>
+          <th scope="col">Created</th>
+          <th scope="col">Last used</th>
+          <th scope="col">Expires</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+<% keys.forEach(function (k) { -%>
+        <tr>
+          <td><span class="mono"><%= k.prefix %>…</span><% if (k.legacy) { %> <span class="badge badge-info">legacy</span><% } %></td>
+          <td><span class="badge <%= keyBadges[k.status] || 'badge-off' %>"><%= k.status %></span></td>
+          <td><%= fmt.dateTime(k.createdAt) %></td>
+          <td><span title="<%= fmt.dateTime(k.lastUsedAt) %>"><%= fmt.relative(k.lastUsedAt) %></span></td>
+          <td>
+<% if (k.status === 'revoked') { -%>
+            <span class="small muted">revoked <%= fmt.dateTime(k.revokedAt) %></span>
+<% } else if (k.expiresAt) { -%>
+            <%= fmt.dateTime(k.expiresAt) %><% if (k.status === 'grace') { %> <span class="small muted">(<%= fmt.relative(k.expiresAt) %>)</span><% } %>
+<% } else { -%>
+            <span class="muted">never</span>
+<% } -%>
+          </td>
+          <td>
+<% if (k.status === 'active' || k.status === 'grace') { -%>
+            <form method="post" action="/admin/apps/<%= app.id %>/keys/<%= k.id %>/revoke" data-confirm="Revoke key <%= k.prefix %>…? Anything still using it stops working immediately.">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <button type="submit" class="btn btn-danger btn-small">Revoke</button>
+            </form>
+<% } -%>
+          </td>
+        </tr>
+<% }); -%>
+      </tbody>
+    </table>
+  </div>
+<% } -%>
+<% if (!currentApiKey) { -%>
+  <form method="post" action="/admin/apps/<%= app.id %>/keys" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">Generate API key</button>
+    </div>
+  </form>
+<% } else { -%>
+  <form method="post" action="/admin/apps/<%= app.id %>/keys/regenerate" class="form" data-confirm="Generate a new API key for <%= app.name %>? The new key is shown once; the current key stops working at the end of the grace period you chose.">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="expected_key_id" value="<%= currentApiKey.id %>">
+    <div class="field-inline">
+      <label for="regen-grace">Keep the current key working for</label>
+      <select id="regen-grace" name="grace" aria-describedby="regen-grace-help">
+        <option value="0">No grace period (revoke it now)</option>
+        <option value="3600" selected>1 hour</option>
+        <option value="86400">24 hours</option>
+      </select>
+      <button type="submit" class="btn btn-primary">Regenerate key</button>
+    </div>
+    <p class="help" id="regen-grace-help">During the grace period both keys work, so the site can be switched to the new key without downtime. Choose "no grace period" if the key has leaked.</p>
+  </form>
+<% } -%>
+</section>
+
+<section class="card" id="test" aria-labelledby="test-title">
+  <h2 class="card-title" id="test-title">Send test email</h2>
+  <form method="post" action="/admin/apps/<%= app.id %>/test" class="form">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div class="field-inline">
+      <label for="test-to">To</label>
+      <input id="test-to" name="to" type="email" maxlength="254" required autocomplete="email" autocapitalize="none" spellcheck="false" value="<%= testTo %>" aria-describedby="test-help">
+      <button type="submit" class="btn btn-secondary">Send test</button>
+    </div>
+    <p class="help" id="test-help">Sends a short message through this app's saved SMTP settings (also while the app is disabled, and without rate limits). The result appears here and in the log.</p>
+  </form>
+</section>
+
+<section class="card" id="snippets" aria-labelledby="snippets-title">
+  <h2 class="card-title" id="snippets-title">Code snippets</h2>
+  <p class="help">
+<% if (app.legacySigning) { -%>
+    How to call <span class="mono"><%= baseUrl %>/send.php</span> with an HMAC signature.
+<% } else { -%>
+    How to call <span class="mono"><%= baseUrl %>/v1/send</span>.
+<% } -%>
+    Replace YOUR_API_KEY with this app's key.
+  </p>
+  <div data-tabs>
+    <div class="tabs" role="tablist" aria-label="Snippet language">
+<% snippetTabs.forEach(function (tab, i) { -%>
+      <button type="button" class="tab<%= i === 0 ? ' tab-active' : '' %>" data-tab="<%= tab.id %>-panel" role="tab" aria-controls="<%= tab.id %>-panel" aria-selected="<%= i === 0 ? 'true' : 'false' %>"><%= tab.label %></button>
+<% }); -%>
+    </div>
+<% snippetTabs.forEach(function (tab, i) { -%>
+    <div data-tab-panel id="<%= tab.id %>-panel" role="tabpanel" aria-label="<%= tab.label %>"<%= i === 0 ? '' : ' hidden' %>>
+      <pre class="code-block" id="<%= tab.id %>"><%= tab.text %></pre>
+      <div class="actions">
+        <button type="button" class="btn btn-secondary btn-small" data-copy="#<%= tab.id %>">Copy <%= tab.label %></button>
+      </div>
+    </div>
+<% }); -%>
+  </div>
+</section>
+
+<h2 id="settings">Settings</h2>
+<%- include('new', { editApp: app }) %>
+
+<section class="card" id="activity" aria-labelledby="activity-title">
+  <h2 class="card-title" id="activity-title">Recent changes</h2>
+<% if (auditRows.length === 0) { -%>
+  <p class="empty">No changes recorded yet.</p>
+<% } else { -%>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">Time</th>
+          <th scope="col">Admin</th>
+          <th scope="col">Action</th>
+          <th scope="col">Details</th>
+        </tr>
+      </thead>
+      <tbody>
+<% auditRows.forEach(function (a) { -%>
+        <tr>
+          <td><%= fmt.dateTime(a.createdAt) %></td>
+          <td><% if (a.actor.anonymous) { %><span class="muted">anonymous</span><% } else { %><%= a.actor.label %><% } %></td>
+          <td><span class="mono"><%= a.action %></span></td>
+          <td class="small"><%= fmt.truncate(a.summary, 300) || '—' %></td>
+        </tr>
+<% }); -%>
+      </tbody>
+    </table>
+  </div>
+<% if (auditTotal > auditRows.length) { -%>
+  <p class="small"><a href="/admin/audit?app=<%= app.id %>">All <%= fmt.number(auditTotal) %> entries for this app</a></p>
+<% } -%>
+<% } -%>
+</section>
+<%- include('../partials/foot') %>

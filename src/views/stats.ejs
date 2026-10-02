@@ -1,0 +1,144 @@
+<%- include('partials/head', { title }) %>
+<%
+  // "failed 2 · rejected 1" for the non-zero parts of a failed total.
+  function breakdown(r) {
+    const parts = [];
+    if (r.failed) parts.push('failed ' + fmt.number(r.failed));
+    if (r.rejected) parts.push('rejected ' + fmt.number(r.rejected));
+    if (r.unknown) parts.push('unknown ' + fmt.number(r.unknown));
+    return parts.join(' · ');
+  }
+  function logsHref(appId, day, status) {
+    const params = new URLSearchParams();
+    if (appId) params.set('app', String(appId));
+    params.set('status', status);
+    params.set('from', day.from);
+    params.set('to', day.to);
+    return '/admin/logs?' + params.toString();
+  }
+  const range = { from: fromDay, to: toDay };
+-%>
+<div class="page-header">
+  <h1>Stats</h1>
+</div>
+
+<form method="get" action="/admin/stats" class="filters">
+  <div class="field">
+    <label for="stats-days">Period</label>
+    <select id="stats-days" name="days" data-autosubmit>
+<% dayOptions.forEach(function (d) { -%>
+      <option value="<%= d %>"<%= d === days ? ' selected' : '' %>>Last <%= d %> days</option>
+<% }); -%>
+    </select>
+  </div>
+  <div class="field">
+    <label for="stats-app">App</label>
+    <select id="stats-app" name="app" data-autosubmit>
+      <option value="">All apps</option>
+<% apps.forEach(function (a) { -%>
+      <option value="<%= a.id %>"<%= String(a.id) === appFilter ? ' selected' : '' %>><%= a.name %></option>
+<% }); -%>
+    </select>
+  </div>
+  <div class="actions">
+    <button type="submit" class="btn btn-primary">Show</button>
+  </div>
+</form>
+<p class="help"><%= fromDay %> to <%= toDay %> (<%= timezone %>). "Failed" counts failed, rejected (refused by the relay, e.g. validation or limits) and unknown-outcome messages.</p>
+
+<div class="grid-2">
+  <section class="card" aria-labelledby="stats-sent-title">
+    <h2 class="card-title" id="stats-sent-title">Sent</h2>
+    <p class="stat-num"><a href="<%= logsHref(appFilter, range, 'sent') %>"><%= fmt.number(totals.sent) %></a></p>
+  </section>
+  <section class="card" aria-labelledby="stats-failed-title">
+    <h2 class="card-title" id="stats-failed-title">Failed</h2>
+    <p class="stat-num"><a href="<%= logsHref(appFilter, range, 'failed') %>"><%= fmt.number(totals.failedTotal) %></a></p>
+<% if (totals.failedTotal > 0) { -%>
+    <p class="small muted"><%= breakdown(totals) %></p>
+<% } -%>
+  </section>
+</div>
+
+<% if (rows.length === 0) { -%>
+<section class="card empty">
+  <p>No messages in this period.</p>
+</section>
+<% } else { -%>
+<% if (!appFilter && byApp.length > 1) { -%>
+<section class="card" aria-labelledby="stats-apps-title">
+  <h2 class="card-title" id="stats-apps-title">By app</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col">Sent</th>
+          <th scope="col">Failed</th>
+        </tr>
+      </thead>
+      <tbody>
+<% byApp.forEach(function (a) { -%>
+        <tr>
+          <td><a href="/admin/stats?days=<%= days %>&amp;app=<%= a.appId %>"><%= a.appName || ('app #' + a.appId) %></a></td>
+          <td><%= fmt.number(a.sent) %></td>
+          <td>
+            <%= fmt.number(a.failedTotal) %>
+<% if (a.failedTotal > 0) { -%>
+            <div class="small muted"><%= breakdown(a) %></div>
+<% } -%>
+          </td>
+        </tr>
+<% }); -%>
+      </tbody>
+    </table>
+  </div>
+</section>
+<% } -%>
+
+<section class="card" aria-labelledby="stats-days-title">
+  <h2 class="card-title" id="stats-days-title">By day</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">Day</th>
+          <th scope="col">App</th>
+          <th scope="col">Sent</th>
+          <th scope="col">Failed</th>
+        </tr>
+      </thead>
+      <tbody>
+<% rows.forEach(function (r) { -%>
+        <tr>
+          <td><%= r.day %></td>
+          <td><%= r.appName || ('app #' + r.appId) %></td>
+          <td><%= fmt.number(r.sent) %></td>
+          <td>
+<% if (r.failedTotal > 0) { -%>
+            <a href="<%= logsHref(r.appId, { from: r.day, to: r.day }, 'failed') %>"><%= fmt.number(r.failedTotal) %></a>
+            <div class="small muted"><%= breakdown(r) %></div>
+<% } else { -%>
+            0
+<% } -%>
+          </td>
+        </tr>
+<% }); -%>
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row" colspan="2">Total</th>
+          <td><strong><%= fmt.number(totals.sent) %></strong></td>
+          <td>
+            <strong><%= fmt.number(totals.failedTotal) %></strong>
+<% if (totals.failedTotal > 0) { -%>
+            <div class="small muted"><%= breakdown(totals) %></div>
+<% } -%>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>
+<% } -%>
+<%- include('partials/foot') %>

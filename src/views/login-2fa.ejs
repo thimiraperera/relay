@@ -1,0 +1,22 @@
+<%- include('partials/head', { title: 'Two-factor authentication' }) %>
+<div class="auth-wrap">
+  <section class="card auth-card" aria-labelledby="totp-title">
+    <h1 class="card-title" id="totp-title">Enter your authentication code</h1>
+    <p class="muted">Open your authenticator app and enter the 6-digit code shown for Relay.</p>
+<% if (locals.error) { -%>
+    <div class="flash flash-error" role="alert" id="totp-error"><%= error %></div>
+<% } -%>
+    <form method="post" action="/admin/login/2fa" class="form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="field">
+        <label for="totp-code">Code</label>
+        <input id="totp-code" name="code" type="text" class="mono input-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="9" required autofocus<% if (locals.error) { %> aria-describedby="totp-error" aria-invalid="true"<% } %>>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Verify</button>
+        <a class="btn btn-secondary" href="/admin/login">Cancel</a>
+      </div>
+    </form>
+  </section>
+</div>
+<%- include('partials/foot') %>

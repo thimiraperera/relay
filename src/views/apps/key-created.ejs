@@ -1,0 +1,36 @@
+<%- include('../partials/head', { title }) %>
+<div class="page-header">
+  <h1>New API key</h1>
+  <div class="actions">
+    <a class="btn btn-secondary" href="/admin/apps/<%= app.id %>">Back to <%= app.name %></a>
+  </div>
+</div>
+
+<section class="card" aria-labelledby="key-title">
+  <h2 class="card-title" id="key-title"><%= app.name %></h2>
+  <p class="warning">Copy this key now. It is shown only once: Relay keeps <%= app.legacySigning ? 'only an encrypted copy for checking signatures' : 'only a hash of it' %>, and nobody can display it again. If it is lost, regenerate it.</p>
+  <div class="key-reveal">
+    <code class="mono" id="new-api-key"><%= newKey %></code>
+    <button type="button" class="btn btn-primary btn-small" data-copy="#new-api-key">Copy key</button>
+  </div>
+  <p class="small muted">Prefix <span class="mono"><%= prefix %>…</span> identifies this key in the key list and the log.</p>
+
+<% if (regenerated) { -%>
+<% if (graceSeconds > 0) { -%>
+  <p>The previous key keeps working until <strong><%= fmt.dateTime(graceUntil) %></strong> (<%= graceLabel %>). Put the new key into the site before then.</p>
+<% } else { -%>
+  <p>The previous key was revoked and no longer works. Put the new key into the site now.</p>
+<% } -%>
+<% } -%>
+
+<% if (app.legacySigning) { -%>
+  <p>Use it as the HMAC signing secret for <span class="mono"><%= endpoint %></span>: <span class="mono">X-Relay-Signature: sha256=hex(HMAC-SHA256(key, timestamp + "." + raw body))</span>. It cannot be used with /v1/send.</p>
+<% } else { -%>
+  <p>Send it as <span class="mono">Authorization: Bearer &lt;key&gt;</span> to <span class="mono"><%= endpoint %></span>.</p>
+<% } -%>
+  <p class="help">Store it like a password: in the site's configuration or an environment variable, not in version control. Code snippets are on the app page.</p>
+  <div class="actions">
+    <a class="btn btn-primary" href="/admin/apps/<%= app.id %>">Done</a>
+  </div>
+</section>
+<%- include('../partials/foot') %>

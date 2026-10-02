@@ -1,0 +1,14 @@
+<%- include('partials/head', { title: locals.title || 'Error' }) %>
+<section class="card error-page" aria-labelledby="error-title">
+  <p class="error-code"><%= locals.status || 500 %></p>
+  <h1 id="error-title"><%= locals.title || 'Error' %></h1>
+  <p><%= locals.message || 'Something went wrong.' %></p>
+  <div class="actions">
+<% if (locals.currentUser) { -%>
+    <a class="btn btn-primary" href="/admin">Go to apps</a>
+<% } else { -%>
+    <a class="btn btn-primary" href="/admin/login">Sign in</a>
+<% } -%>
+  </div>
+</section>
+<%- include('partials/foot') %>
